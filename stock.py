@@ -33,6 +33,16 @@ def get_zhangting(zt_date):
     everything = db['everything']
     meta = db['meta']
 
+    #测试有没有导入过
+    result = everything.find_one(
+        {"zhangtings.date":import_date}
+    )
+    if type(result)==dict:
+        print("该日期已经下载过")
+        client.close()
+        return None
+
+    insert_count = 0
     for item in zt_lists:
         zt = item.split(',')
         #去掉ST股
@@ -49,22 +59,17 @@ def get_zhangting(zt_date):
                 }
             }
         )
+        insert_count += result.modified_count
+
         if result.matched_count == 0:
             zhangting =[]
-            zhangting.push(d)
+            zhangting.append(d)
             d_new = dict(code = zt[0][1:-1], name = zt[1][1:-1], selected = 0,themes =[],
             observations=[], plans = [], shoulds =[], comments=[], zhangtings=zhangting)
-            everything.insert_one(d_new)
+            result = everything.insert_one(d_new)
+            insert_count += 1
     
-    n =fn_n_from_date(year, zt_date[0], zt_date[1])-1
-    meta.update_one(
-        {"name":2017,"content":n,"$atomic":"true"},
-        {"$set":{
-            "content.$":2
-        }}
-    )
-
-    print('save many successed')
+    print('save ', insert_count, ' items successfully')
     client.close()
 
         
@@ -116,55 +121,6 @@ def get_daily():
 
     print(len(today_all_list))
     fn_save_many('daily', today_all_list)
-
-    
-def create_trade_days():
-    """
-    生成某年交易日，1为交易日，0为非交易日，2是交易日涨停数据已经下载。存入meta集合
-
-    :raises keyError: raises an exception
-    """
-    year = 2017
-    length = 366 if ((year%4 == 0 and year%100 !=0)or(year%400==0)) else 365
-    trade_days = [1]*length
-    print(len(trade_days))
-    # 周末设为0
-    for i in range(length):
-        month, day = fn_date_from_n(year, i+1)
-        trade_day = date(year,month, day)
-        if trade_day.weekday() > 4:
-            trade_days[i]=0
-    # 公休日设为0,必须手动
-    trade_days[fn_n_from_date(year,1,1)-1]=0
-    trade_days[fn_n_from_date(year,1,2)-1]=0
-    trade_days[fn_n_from_date(year,1,27)-1]=0
-    trade_days[fn_n_from_date(year,1,28)-1]=0
-    trade_days[fn_n_from_date(year,1,29)-1]=0
-    trade_days[fn_n_from_date(year,1,30)-1]=0
-    trade_days[fn_n_from_date(year,1,31)-1]=0
-    trade_days[fn_n_from_date(year,2,1)-1]=0
-    trade_days[fn_n_from_date(year,2,2)-1]=0
-    trade_days[fn_n_from_date(year,4,2)-1]=0
-    trade_days[fn_n_from_date(year,4,3)-1]=0
-    trade_days[fn_n_from_date(year,4,4)-1]=0
-    trade_days[fn_n_from_date(year,4,29)-1]=0
-    trade_days[fn_n_from_date(year,4,30)-1]=0
-    trade_days[fn_n_from_date(year,5,1)-1]=0
-    trade_days[fn_n_from_date(year,5,29)-1]=0
-    trade_days[fn_n_from_date(year,5,30)-1]=0
-    trade_days[fn_n_from_date(year,10,2)-1]=0
-    trade_days[fn_n_from_date(year,10,3)-1]=0
-    trade_days[fn_n_from_date(year,10,4)-1]=0
-    trade_days[fn_n_from_date(year,10,5)-1]=0
-    trade_days[fn_n_from_date(year,10,6)-1]=0
-
-    d = {}
-    d["name"] = 2017
-    d["content"] = trade_days
-    fn_save_one("meta", d)
-
-
-
 
 def getLastDate():
     """
@@ -225,6 +181,58 @@ def fn_save_one(collection, doc):
     client.close()
 
 #-------------------交易日有关----------------------#
+def create_trade_days(year):
+    """
+    生成某年交易日，1为交易日，0为非交易日，2是交易日涨停数据已经下载。存入meta集合
+
+    :raises keyError: raises an exception
+    """
+    length = 366 if ((year%4 == 0 and year%100 !=0)or(year%400==0)) else 365
+    trade_days = [1]*length
+    print(len(trade_days))
+    # # 周末设为0
+    # for i in range(length):
+    #     month, day = fn_date_from_n(year, i+1)
+    #     trade_day = date(year,month, day)
+    #     if trade_day.weekday() > 4:
+    #         trade_days[i]=0
+    # 公休日设为0,必须手动
+    trade_days[fn_n_from_date(year,1,1)-1]=0
+    trade_days[fn_n_from_date(year,1,2)-1]=0
+    trade_days[fn_n_from_date(year,1,27)-1]=0
+    trade_days[fn_n_from_date(year,1,28)-1]=0
+    trade_days[fn_n_from_date(year,1,29)-1]=0
+    trade_days[fn_n_from_date(year,1,30)-1]=0
+    trade_days[fn_n_from_date(year,1,31)-1]=0
+    trade_days[fn_n_from_date(year,2,1)-1]=0
+    trade_days[fn_n_from_date(year,2,2)-1]=0
+    trade_days[fn_n_from_date(year,4,2)-1]=0
+    trade_days[fn_n_from_date(year,4,3)-1]=0
+    trade_days[fn_n_from_date(year,4,4)-1]=0
+    trade_days[fn_n_from_date(year,4,29)-1]=0
+    trade_days[fn_n_from_date(year,4,30)-1]=0
+    trade_days[fn_n_from_date(year,5,1)-1]=0
+    trade_days[fn_n_from_date(year,5,29)-1]=0
+    trade_days[fn_n_from_date(year,5,30)-1]=0
+    trade_days[fn_n_from_date(year,10,2)-1]=0
+    trade_days[fn_n_from_date(year,10,3)-1]=0
+    trade_days[fn_n_from_date(year,10,4)-1]=0
+    trade_days[fn_n_from_date(year,10,5)-1]=0
+    trade_days[fn_n_from_date(year,10,6)-1]=0
+
+    d = {}
+    j=1
+    # 周末设为0
+    for i in range(length):
+        month, day = fn_date_from_n(year, i+1)
+        trade_day = date(year,month, day)
+        trade_day
+        if trade_days[i] != 0 and trade_day.weekday() <5:
+            d[trade_day.isoformat()]=i
+            d[i] = trade_day.isoformat()  
+
+    return d      
+
 def fn_date_from_n(year, n):
     """
     辅助函数，n是一年中第几天，返回月、日tuple
@@ -298,4 +306,26 @@ def temp():
 
     client.close()
 
-temp()
+def test1():
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client['win']
+    everything = db['everything']
+
+    result = everything.find_one(
+        {"zhangtings.date":datetime(2017, 8, 11)}
+    )
+    if type(result)==dict:
+        print("该日期已经下载过")
+        client.close()
+        return None
+
+
+    client.close()
+
+TRADE_DAYS_2017 = create_trade_days(2017)
+
+def test2():
+    print(TRADE_DAYS_2017)
+
+
+test2()
