@@ -1,6 +1,8 @@
 import requests
 from datetime import datetime, date
 from pymongo import MongoClient
+import os
+import os.path
 
 import tushare as ts
 
@@ -128,11 +130,11 @@ def get_zhangting(zt_date):
     """
     year = 2017
     import_date = datetime(year, zt_date[0], zt_date[1])
-    url = 'http://home.flashdata2.jrj.com.cn/limitStatistic/ztForce/'+ \
-        import_date.strftime('%Y%m%d') +'.js'
 
-    res = requests.get(url)
-    data = res.text[16:].replace('\r\n', '')
+    # 获取涨停数据，优先从本地文件
+    text = fn_get_zt_file(import_date)
+
+    data = text[16:].replace('\r\n', '')
     clean_data = data[data.find('Data')+8:-4]
     zt_lists = clean_data.split('],[')
 
@@ -183,13 +185,37 @@ def get_zhangting(zt_date):
         if result.matched_count == 0:
             zhangting =[]
             zhangting.append(d)
-            d_new = dict(code = zt[0][1:-1], name = zt[1][1:-1], selected = 0,themes =[],
+            d_new = dict(code = zt[0][1:-1], name = zt[1][1:-1], selected = 0,observed=0,themes =[],
             observations=[], plans = [], shoulds =[], comments=[], zhangtings=zhangting)
             result = everything.insert_one(d_new)
             insert_count += 1
     
     print(import_date.isoformat()[:10],' save ', insert_count, ' items successfully')
     client.close()
+
+def fn_get_zt_file(zt_date):
+    """
+    辅助函数，获取涨停信息，先去本地找，找不到就下载并且保存在本地
+
+    :param zt_date: datetime 交易日
+    :returns: str 金融界每日涨停原始文本
+    :raises keyError: raises an exception
+    """
+    filename = os.getcwd() + "/data/zt2017/" + zt_date.strftime('%Y%m%d') +'.js'
+    if os.path.isfile(filename):
+        with open(filename, 'r') as f:
+            return f.read()
+    else:
+        url = 'http://home.flashdata2.jrj.com.cn/limitStatistic/ztForce/'+ \
+        zt_date.strftime('%Y%m%d') +'.js'
+        
+        res = requests.get(url)
+        text = res.text
+        with open(filename, 'w') as f:
+            f.write(text)
+        return text
+
+
 
 def get_zhangtings(from_date, to_date=date.today().strftime("%Y%m%d")):
     """
@@ -227,7 +253,7 @@ def get_all_stocks():
     for i in range(length):
         code = all_stocks.index[i]
         name = all_stocks.iloc[i]['name']
-        d = dict(code = code, name = name, selected = 0,themes =[],
+        d = dict(code = code, name = name, selected = 0,observed=0,themes =[],
         observations=[], plans = [], shoulds =[], comments=[], zhangtings=[])
         all_stocks_list.append(d)
     
@@ -256,21 +282,6 @@ def get_daily():
 
     print(len(today_all_list))
     fn_save_many('daily', today_all_list)
-
-def getLastDate():
-    """
-    辅助函数，把形如09:25:00的字符串转换为日期类型
-
-    :param param1: 形如09:25:00的字符串
-    :param param2: date类型
-    :returns: datetime类型
-    :raises keyError: raises an exception
-    """
-    #构造一个365长度的列表，2代表非交易日，0和1代表交易日，0代表数据还没下载，1代表数据已经下载
-    #这个列表可以放在数据库里面，然后每次先去数据库里读取最后一个1的日期
-    lastDate = date(2017,10,9)
-    return lastDate
-
 
 def fn_toDatetime(time_str, zt_date):
     """
@@ -335,4 +346,4 @@ def temp():
 
 # get_zhangtings('20170928')
 
-
+get_zhangting((10,18))
